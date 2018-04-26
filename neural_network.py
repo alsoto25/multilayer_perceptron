@@ -24,7 +24,7 @@ class Layer:
              activation_function -> Activation function to use for the layer
              prime_activation_function -> Derivative of the activation function
     """
-    def __init__(self, shape, activation_function=ut.cross_entropy, prime_activation_function=ut.delta_cross_entropy):
+    def __init__(self, shape, activation_function=ut.cross_entropy, prime_activation_function=ut.cross_entropy_prime):
         self.output = np.ones(shape[1])
         self.prime_output = np.ones(shape[0])
         self.neurons = np.random.standard_normal(shape)
@@ -36,8 +36,10 @@ class Layer:
         self.neurons = neurons
 
     def feed_forward_layer(self, X):
-        s = ut.s(self.neurons, X)
+        s = np.dot(self.neurons, X)
         self.output = self.activation_function(s)
 
-    def back_prop_layer(self, z, y):
-        self.prime_output = np.apply_along_axis()
+    def back_prop_layer(self, error, y):
+        self.prime_output = error * self.prime_activation_function(y)
+
+    def update_layer(self, ):

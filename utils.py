@@ -7,13 +7,6 @@ def unpickle(file):
     with open(file, 'rb') as fo:
         return pk.load(fo, encoding='bytes')
 
-
-#     s = wX + b  (Using bias trick)
-#  -> s = wX
-def s(w, X):
-    return np.dot(w, X)
-
-
 # ReLU function
 def relu(mat):
     return np.maximum(mat, 0)
