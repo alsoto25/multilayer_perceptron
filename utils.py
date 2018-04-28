@@ -1,18 +1,24 @@
 import numpy as np
 import pickle as pk
 
+# CONSTANTS
+LEARNING_RATE = 0.1
+DROPOUT_PERCENTAGE = 0.5
+BATCH_SIZE = 16
+
 
 # Returns dictionary with unpickled CIFAR data
 def unpickle(file):
     with open(file, 'rb') as fo:
         return pk.load(fo, encoding='bytes')
 
+
 # ReLU function
 def relu(mat):
     return np.maximum(mat, 0)
 
 
-def relu_prime(mat):
+def relu_prime(mat, y):
     mat[mat <= 0] = 0
     mat[mat > 0] = 1
     return mat
@@ -31,10 +37,11 @@ def stable_softmax(mat):
 
 
 def cross_entropy(mat):
-    p = softmax(mat)
-    log_likelihood = -np.log(p[range(m), y])
-    loss = np.sum(log_likelihood) / m
-    return loss
+    return -np.log(stable_softmax(mat))
+
+
+def loss_function(mat, y):
+    return np.sum(mat[range(y.shape[0]), y]) / y.shape[0]
 
 
 def cross_entropy_prime(mat, y):

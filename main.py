@@ -3,6 +3,7 @@ import tkinter as tk
 import matplotlib as mpl
 import scipy.misc as smp
 import neural_network as nn
+import numpy as np
 import matplotlib.animation as animation
 
 mpl.use("TkAgg")
@@ -109,5 +110,16 @@ def get_test_image():
     print(name)
 
 
-app = MainGUI()
-app.mainloop()
+# app = MainGUI()
+# app.mainloop()
+
+netwk = nn.Network([512, 216],
+                   [ut.relu, ut.relu, ut.cross_entropy],
+                   [ut.relu_prime, ut.relu_prime, ut.cross_entropy_prime])
+
+for i in range((nn.train_lbls.size / ut.BATCH_SIZE) - 1):
+    netwk.train_batch(nn.train_imgs[(i*ut.BATCH_SIZE):((i+1)*ut.BATCH_SIZE)],
+                      nn.train_lbls[(i*ut.BATCH_SIZE):((i+1)*ut.BATCH_SIZE)])
+
+    netwk.back_prop_batch(nn.train_lbls[(i*ut.BATCH_SIZE):((i+1)*ut.BATCH_SIZE)])
+
