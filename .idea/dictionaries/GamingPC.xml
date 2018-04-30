@@ -7,6 +7,7 @@
       <w>mndata</w>
       <w>mnist</w>
       <w>perceptron</w>
+      <w>relu</w>
       <w>softmax</w>
     </words>
   </dictionary>
