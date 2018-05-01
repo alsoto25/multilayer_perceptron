@@ -1,19 +1,29 @@
 import utils as ut
 import numpy as np
 
+from mnist import MNIST
 
-'''
-Dropout
-'''
+# MNIST Constants
+mndata = MNIST('./MNIST')
+test_imgs, test_lbls = mndata.load_testing()
+train_imgs, train_lbls = mndata.load_training()
+
+train_imgs = np.asarray(train_imgs)
+train_lbls = np.asarray(train_lbls)
+
+test_imgs = np.asarray(test_imgs)
+test_lbls = np.asarray(test_lbls)
 
 
 class Network(object):
-    def __init__(self, data, label, n_in, hidden_layer_sizes, n_out, rng=None):
+    def __init__(self, data, label, n_in, hidden_layer_sizes, n_out, rng=None, dropout=True):
 
-        self.x = data
+        self.x = data / np.max(data)
         self.y = label
+        self.dropout = dropout
 
         self.hidden_layers = []
+        self.dropout_masks = []
         self.n_layers = len(hidden_layer_sizes)
 
         if rng is None:
@@ -35,7 +45,7 @@ class Network(object):
                 layer_data = self.x
 
             else:
-                layer_data = self.hidden_layers[-1].output()
+                layer_data = self.hidden_layers[-1].output
 
             # construct hidden_layer
             hidden_layer = HiddenLayer(data=layer_data,
@@ -47,55 +57,91 @@ class Network(object):
             self.hidden_layers.append(hidden_layer)
 
             # layer for ouput using Logistic Regression (softmax)
-            self.log_layer = LogisticRegression(data=self.hidden_layers[-1].output(),
+            self.log_layer = LogisticRegression(data=self.hidden_layers[-1].output,
                                                 label=self.y,
                                                 n_in=hidden_layer_sizes[-1],
                                                 n_out=n_out)
 
-    def feed_forward(self, dropout=True, p_dropout=0.5, rng=None):
+    def train(self):
+        data = np.asarray([(x, y) for x, y in zip(self.x, self.y)])
+        np.random.shuffle(data)
 
-        for epoch in range(ut.EPOCHS):
-            dropout_masks = []  # create different masks in each training epoch
+        for i in range(int(len(self.x) / ut.BATCH_SIZE) - 1):
+            print("------------------ Batch #" + str(i + 1) + " of " + str(int(len(self.x) / ut.BATCH_SIZE)))
 
-            # forward hidden_layers
-            for i in range(self.n_layers):
-                if i == 0:
+            dropout = i == 0
+
+            cost = self.feed_forward_batch(
+                data=np.asarray([x for (x, y) in data[(i * ut.BATCH_SIZE):((i + 1) * ut.BATCH_SIZE)]]),
+                labels=np.asarray([y for (x, y) in data[(i * ut.BATCH_SIZE):((i + 1) * ut.BATCH_SIZE)]]),
+                dropout=dropout)
+
+            self.back_prop_batch()
+            self.update_batch()
+
+            print('Cost: ' + str(cost))
+
+    def feed_forward_batch(self, data=None, labels=None, rng=None, dropout=False):
+        self.dropout_masks = []
+
+        if labels is None:
+            labels = self.y
+
+        for i in range(self.n_layers):
+            if i == 0:
+                if data is not None:
+                    layer_data = data
+                else:
                     layer_data = self.x
 
-                layer_data = self.hidden_layers[i].forward(data=layer_data)
+            layer_data = self.hidden_layers[i].feed_forward(data=layer_data)
 
-                if dropout:
-                    mask = self.hidden_layers[i].dropout(data=layer_data, p=p_dropout, rng=rng)
-                    layer_data *= mask
+            if self.dropout:
+                mask = self.hidden_layers[i].dropout(data=layer_data, p=ut.DROPOUT_PERCENTAGE, rng=rng)
+                layer_data *= mask
 
-                    dropout_masks.append(mask)
+                self.dropout_masks.append(mask)
 
-            # forward & backward log_layer
-            self.log_layer.train(data=layer_data)
+        return self.log_layer.feed_forward_layer(data=layer_data, labels=labels)
 
-            # backward hidden_layers
-            for i in reversed(range(0, self.n_layers)):
-                if i == self.n_layers - 1:
-                    prev_layer = self.log_layer
-                else:
-                    prev_layer = self.hidden_layers[i + 1]
+    def back_prop_batch(self):
+        self.log_layer.back_prop_layer()
 
-                self.hidden_layers[i].backward(prev_layer=prev_layer)
+        for i in reversed(range(self.n_layers)):
+            if i == self.n_layers - 1:
+                prev_layer = self.log_layer
+            else:
+                prev_layer = self.hidden_layers[i + 1]
 
-                if dropout:
-                    self.hidden_layers[i].d_y *= dropout_masks[i]  # also mask here
+            self.hidden_layers[i].back_prop(prev_layer=prev_layer)
 
-    def predict(self, x, dropout=True, p_dropout=0.5):
+            if self.dropout:
+                self.hidden_layers[i].prime_output *= self.dropout_masks[i]  # also mask here
+
+    def update_batch(self):
+        for i in range(self.n_layers):
+            self.hidden_layers[i].update()
+
+        self.log_layer.update()
+
+    def predict(self, x):
         layer_data = x
 
         for i in range(self.n_layers):
-            if dropout:
-                self.hidden_layers[i].W = p_dropout * self.hidden_layers[i].W
-                self.hidden_layers[i].b = p_dropout * self.hidden_layers[i].b
+            if self.dropout:
+                self.hidden_layers[i].W = ut.DROPOUT_PERCENTAGE * self.hidden_layers[i].W
+                self.hidden_layers[i].b = ut.DROPOUT_PERCENTAGE * self.hidden_layers[i].b
 
-            layer_data = self.hidden_layers[i].output(data=layer_data)
+            layer_data = self.hidden_layers[i].feed_forward(data=layer_data)
 
         return self.log_layer.predict(layer_data)
+
+    def test(self, data, labels):
+        self.feed_forward_batch(data=data, labels=labels)
+
+        results = [(np.argmax(self.log_layer.output), y) for x, y in zip(data, labels)]
+
+        return sum(int(x == y) for (x, y) in results)
 
 
 '''
@@ -110,10 +156,10 @@ class HiddenLayer(object):
             rng = np.random.RandomState(1234)
 
         if W is None:
-            W = np.random.randn(n_in, n_out)    # initialize W with normal standard distribution
+            W = np.random.normal(ut.MU, ut.SIGMA, (n_in, n_out))
 
         if b is None:
-            b = np.zeros(n_out)  # initialize bias 0
+            b = np.random.normal(ut.MU, ut.SIGMA, n_out)
 
         self.rng = rng
         self.x = data
@@ -121,7 +167,8 @@ class HiddenLayer(object):
         self.W = W
         self.b = b
 
-        self.d_y = 0
+        self.output = np.zeros(n_out)
+        self.prime_output = np.zeros((n_out, n_in))
 
         if activation == ut.tanh:
             self.prime_activation = ut.tanh_prime
@@ -137,38 +184,22 @@ class HiddenLayer(object):
 
         self.activation = activation
 
-    def output(self, data=None):
+    def feed_forward(self, data=None):
         if data is not None:
             self.x = data
 
-        linear_output = np.dot(self.x, self.W) + self.b
+        self.output = self.activation(np.dot(self.x, self.W) + self.b)
+        return self.output
 
-        return (linear_output if self.activation is None
-                else self.activation(linear_output))
-
-    def sample_h_given_v(self, data=None):
+    def back_prop(self, prev_layer, data=None):
         if data is not None:
             self.x = data
 
-        v_mean = self.output()
-        h_sample = self.rng.binomial(size=v_mean.shape,
-                                     n=1,
-                                     p=v_mean)
-        return h_sample
+        self.prime_output = self.prime_activation(prev_layer.x) * np.dot(prev_layer.prime_output, prev_layer.W.T)
 
-    def forward(self, data=None):
-        return self.output(data=data)
-
-    def backward(self, prev_layer, lr=0.1, data=None):
-        if data is not None:
-            self.x = data
-
-        d_y = self.prime_activation(prev_layer.x) * np.dot(prev_layer.d_y, prev_layer.W.T)
-
-        self.W += lr * np.dot(self.x.T, d_y)
-        self.b += lr * np.mean(d_y, axis=0)
-
-        self.d_y = d_y
+    def update(self):
+        self.W += ut.LEARNING_RATE * np.dot(self.x.T, self.prime_output)
+        self.b += ut.LEARNING_RATE * np.mean(self.prime_output, axis=0)
 
     def dropout(self, data, p, rng=None):
         if rng is None:
@@ -187,42 +218,37 @@ Logistic Regression
 
 
 class LogisticRegression(object):
-    def __init__(self, data, label, n_in, n_out, activation_function=ut.softmax, ):
+    def __init__(self, data, label, n_in, n_out, activation_function=ut.softmax):
         self.x = data
         self.y = label
-        self.W = np.zeros((n_in, n_out))  # initialize W 0
-        self.b = np.zeros(n_out)  # initialize bias 0
-        self.output = np.zeros((data.shape[1], label.shape[0]))
-        self.prime_output = np.zeros((label.shape[0], data.shape[1]))
-        self.d_y = 0
+        self.W = np.random.normal(ut.MU, ut.SIGMA, (n_in, n_out))
+        self.b = np.random.normal(ut.MU, ut.SIGMA, n_out)
+        self.output = np.zeros(n_out)
+        self.prime_output = np.zeros((n_out, n_in))
         self.activation_function = activation_function
 
-    def feed_forward_layer(self, data=None):
+    def feed_forward_layer(self, data=None, labels=None):
         if data is not None:
             self.x = data
+        if labels is not None:
+            self.y = labels
 
         self.output = self.activation_function(np.dot(self.x, self.W) + self.b)
-        d_y = self.y - p_y_given_x
 
-        self.W += ut.LEARNING_RATE * np.dot(self.x.T, d_y)
-        self.b += ut.LEARNING_RATE * np.mean(d_y, axis=0)
-
-        self.d_y = d_y
-
-        # cost = self.negative_log_likelihood()
-        # return cost
+        return self.cost()
 
     def back_prop_layer(self):
+        self.prime_output = ut.cross_entropy_prime(self.output, self.y)
+
+    def update(self):
+        self.W += ut.LEARNING_RATE * np.dot(self.x.T, self.prime_output)
+        self.b += ut.LEARNING_RATE * np.mean(self.prime_output, axis=0)
 
     def cost(self):
-        sigmoid_activation = self.activation_function(np.dot(self.x, self.W) + self.b)
-        return ut.cross_entropy(sigmoid_activation, self.y)
+        return ut.cross_entropy(self.output, self.y)
 
     def predict(self, x):
         return self.activation_function(np.dot(x, self.W) + self.b)
-
-    def output(self, x):
-        return self.predict(x)
 
 
 def test_dropout(n_epochs=5000, dropout=True, p_dropout=0.5):

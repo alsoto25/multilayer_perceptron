@@ -2,10 +2,12 @@ import numpy as np
 import pickle as pk
 
 # CONSTANTS
-LEARNING_RATE = 0.1
+LEARNING_RATE = 0.0001
 DROPOUT_PERCENTAGE = 0.5
 BATCH_SIZE = 16
 EPOCHS = 100
+MU = 0
+SIGMA = 0.1
 
 
 # Returns dictionary with unpickled CIFAR data
@@ -59,14 +61,6 @@ def unpickle(file):
 #     return loss
 #
 #
-# def cross_entropy_prime(mat, y):
-#     m = np.asarray(y).shape[0]
-#     # grad = softmax(mat)
-#     grad = np.copy(mat)
-#     grad[range(m), y] -= 1
-#     grad = grad / m
-#     return grad
-
 
 def sigmoid(x):
     return 1. / (1 + np.exp(-x))
@@ -85,11 +79,8 @@ def tanh_prime(x):
 
 
 def softmax(x):
-    e = np.exp(x - np.max(x))  # prevent overflow
-    if e.ndim == 1:
-        return e / np.sum(e, axis=0)
-    else:
-        return e / np.array([np.sum(e, axis=1)]).T  # ndim = 2
+    exp_max = np.exp(x - np.max(x, axis=-1, keepdims=True))
+    return exp_max / np.sum(exp_max, axis=-1, keepdims=True)
 
 
 def ReLU(x):
@@ -101,4 +92,17 @@ def ReLU_prime(x):
 
 
 def cross_entropy(activation, y):
-    return -np.mean(np.sum(y * np.log(activation) + (1 - y) * np.log(1 - activation), axis=1))
+    one_hot_v = np.zeros(activation.shape)
+    one_hot_v[np.arange(activation.shape[0]), y] = 1
+    return -np.mean(np.sum(np.nan_to_num(one_hot_v * np.log(activation) + (1 - one_hot_v) * np.log(1 - activation)),
+                                         axis=1))
+
+
+def cross_entropy_prime(mat, y):
+    m = np.asarray(y).shape[0]
+    # grad = softmax(mat)
+    grad = np.copy(mat)
+    grad[range(m), y] -= 1
+    grad = grad / m
+    return grad
+

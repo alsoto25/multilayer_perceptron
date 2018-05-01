@@ -2,7 +2,7 @@ import utils as ut
 import tkinter as tk
 import matplotlib as mpl
 import scipy.misc as smp
-import neural_network_2 as nn
+import neural_network_3 as nn
 import numpy as np
 import matplotlib.animation as animation
 
@@ -113,22 +113,14 @@ def get_test_image():
 # app = MainGUI()
 # app.mainloop()
 
-netwk = nn.Network([784, 512, 216, 10],
-                   [ut.leaky_relu, ut.leaky_relu, ut.softmax],
-                   [ut.leaky_relu_prime, ut.leaky_relu_prime, ut.cross_entropy_prime])
+netwk = nn.Network(nn.train_imgs, nn.train_lbls, nn.train_imgs.shape[1],
+                   [512, 216], np.unique(nn.train_lbls).size)
 
 for j in range(ut.EPOCHS):
     print('------------------------------- E P O C H   # ' + str(j) + ' -------------------------------')
-    for i in range(int(len(nn.train_data) / ut.BATCH_SIZE) - 1):
-        print("------------------ Batch #" + str(i+1) + " of " + str(int(len(nn.train_data) / ut.BATCH_SIZE)))
+    netwk.train()
 
-        zs, activations = netwk.feed_forward_batch(nn.train_data[(i*ut.BATCH_SIZE):((i+1)*ut.BATCH_SIZE)])
-        bpo, wpo = netwk.back_prop_batch(nn.train_data[(i*ut.BATCH_SIZE):((i+1)*ut.BATCH_SIZE)], zs, activations)
-        netwk.update_batch(nn.train_data[(i*ut.BATCH_SIZE):((i+1)*ut.BATCH_SIZE)], bpo, wpo)
-
-        print('Cost: ' + str(netwk.cost(activations[-1], nn.train_data[(i*ut.BATCH_SIZE):((i+1)*ut.BATCH_SIZE)])))
-
-    print('Accuracy: ' + str(netwk.accuracy(nn.test_imgs, nn.test_lbls) * 100 / nn.test_lbls.size) + '%')
+    print('Accuracy: ' + str(netwk.test(nn.test_imgs, nn.test_lbls) * 100 / nn.test_lbls.size) + '%')
 
 
 
