@@ -2,10 +2,10 @@ import numpy as np
 import pickle as pk
 
 # CONSTANTS
-LEARNING_RATE = 0.0001
+LEARNING_RATE = 0.0085
 DROPOUT_PERCENTAGE = 0.5
 BATCH_SIZE = 16
-EPOCHS = 100
+EPOCHS = 1000
 MU = 0
 SIGMA = 0.1
 
@@ -92,17 +92,19 @@ def ReLU_prime(x):
 
 
 def cross_entropy(activation, y):
-    one_hot_v = np.zeros(activation.shape)
-    one_hot_v[np.arange(activation.shape[0]), y] = 1
-    return -np.mean(np.sum(np.nan_to_num(one_hot_v * np.log(activation) + (1 - one_hot_v) * np.log(1 - activation)),
+    if activation.shape == y.shape:
+        one_hot_v = np.copy(y)
+        return -np.mean(np.sum(np.nan_to_num(one_hot_v * np.log(activation) + (1 - one_hot_v) * np.log(1 - activation)),
+                               axis=0))
+    else:
+        one_hot_v = np.zeros(activation.shape)
+        one_hot_v[np.arange(activation.shape[0]), y] = 1
+        return -np.mean(np.sum(np.nan_to_num(one_hot_v * np.log(activation) + (1 - one_hot_v) * np.log(1 - activation)),
                                          axis=1))
 
 
 def cross_entropy_prime(mat, y):
-    m = np.asarray(y).shape[0]
-    # grad = softmax(mat)
-    grad = np.copy(mat)
-    grad[range(m), y] -= 1
-    grad = grad / m
-    return grad
+    one_hot_v = np.zeros(mat.shape)
+    one_hot_v[np.arange(mat.shape[0]), y] = 1
+    return one_hot_v - mat
 

@@ -29,7 +29,7 @@ class Network(object):
         if rng is None:
             rng = np.random.RandomState(1234)
 
-        assert self.n_layers > 0
+        assert self.n_layers >= 0
 
         # construct multi-layer
         for i in range(self.n_layers):
@@ -51,23 +51,31 @@ class Network(object):
             hidden_layer = HiddenLayer(data=layer_data,
                                        n_in=data_size,
                                        n_out=hidden_layer_sizes[i],
-                                       rng=rng,
-                                       activation=ut.ReLU)
+                                       rng=rng)
 
             self.hidden_layers.append(hidden_layer)
 
-            # layer for ouput using Logistic Regression (softmax)
+        if self.n_layers != 0:
             self.log_layer = LogisticRegression(data=self.hidden_layers[-1].output,
                                                 label=self.y,
                                                 n_in=hidden_layer_sizes[-1],
                                                 n_out=n_out)
+        else:
+            self.log_layer = LogisticRegression(data=self.x,
+                                                label=self.y,
+                                                n_in=n_in,
+                                                n_out=n_out)
 
-    def train(self):
+    def train(self, batch=True):
         data = np.asarray([(x, y) for x, y in zip(self.x, self.y)])
         np.random.shuffle(data)
 
-        for i in range(int(len(self.x) / ut.BATCH_SIZE) - 1):
-            print("------------------ Batch #" + str(i + 1) + " of " + str(int(len(self.x) / ut.BATCH_SIZE)))
+        if batch and ut.BATCH_SIZE <= len(self.x):
+            batch_size_range = int(len(self.x) / ut.BATCH_SIZE) - 1
+        else:
+            batch_size_range = 1
+        for i in range(batch_size_range):
+            print("------------------ Batch #" + str(i + 1) + " of " + str(batch_size_range))
 
             dropout = i == 0
 
@@ -87,13 +95,12 @@ class Network(object):
         if labels is None:
             labels = self.y
 
-        for i in range(self.n_layers):
-            if i == 0:
-                if data is not None:
-                    layer_data = data
-                else:
-                    layer_data = self.x
+        if data is not None:
+            layer_data = data
+        else:
+            layer_data = self.x
 
+        for i in range(self.n_layers):
             layer_data = self.hidden_layers[i].feed_forward(data=layer_data)
 
             if self.dropout:
@@ -139,9 +146,9 @@ class Network(object):
     def test(self, data, labels):
         self.feed_forward_batch(data=data, labels=labels)
 
-        results = [(np.argmax(self.log_layer.output), y) for x, y in zip(data, labels)]
+        results = [(np.argmax(x), y) for x, y in zip(self.log_layer.output, labels)]
 
-        return sum(int(x == y) for (x, y) in results)
+        return sum(int(x == y) for (x, y) in results) / labels.size
 
 
 '''
@@ -150,7 +157,7 @@ Hidden Layer
 
 
 class HiddenLayer(object):
-    def __init__(self, data, n_in, n_out, W=None, b=None, rng=None, activation=ut.ReLU):
+    def __init__(self, data, n_in, n_out, W=None, b=None, rng=None, activation=ut.sigmoid):
 
         if rng is None:
             rng = np.random.RandomState(1234)
@@ -211,6 +218,10 @@ class HiddenLayer(object):
 
         return mask
 
+    def set_wb(self, w, b):
+        self.W = w
+        self.b = b
+
 
 '''
 Logistic Regression
@@ -218,7 +229,7 @@ Logistic Regression
 
 
 class LogisticRegression(object):
-    def __init__(self, data, label, n_in, n_out, activation_function=ut.softmax):
+    def __init__(self, data, label, n_in, n_out, activation_function=ut.sigmoid):
         self.x = data
         self.y = label
         self.W = np.random.normal(ut.MU, ut.SIGMA, (n_in, n_out))
@@ -250,32 +261,32 @@ class LogisticRegression(object):
     def predict(self, x):
         return self.activation_function(np.dot(x, self.W) + self.b)
 
+    def set_wb(self, w, b):
+        self.W = w
+        self.b = b
 
-def test_dropout(n_epochs=5000, dropout=True, p_dropout=0.5):
-    # XOR
-    x = np.array([[0, 0],
-                     [0, 1],
-                     [1, 0],
-                     [1, 1]])
 
-    y = np.array([[0, 1],
-                     [1, 0],
-                     [1, 0],
-                     [0, 1]])
+def test_dropout():
+    for i in range(ut.EPOCHS):
+        # XOR
+        x = np.array([[0, 0],
+                      [0, 1],
+                      [1, 0],
+                      [1, 1]])
 
-    rng = np.random.RandomState(123)
+        y = np.array([0, 1, 1, 0])
 
-    # construct Dropout MLP
-    classifier = Network(data=x, label=y,
-                         n_in=2, hidden_layer_sizes=[10, 10], n_out=10,
-                         rng=rng)
+        rng = np.random.RandomState(123)
 
-    # train
-    classifier.feed_forward(dropout=dropout,
-                            p_dropout=p_dropout, rng=rng)
+        # construct Dropout MLP
+        classifier = Network(data=x, label=y,
+                             n_in=2, hidden_layer_sizes=[10, 10], n_out=2,
+                             rng=rng)
 
-    # test
-    print(classifier.predict(x))
+        # train
+        classifier.train()
+
+        print('Accuracy: ' + str(classifier.test(x, y)))
 
 
 if __name__ == "__main__":

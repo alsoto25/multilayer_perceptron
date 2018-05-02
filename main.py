@@ -113,14 +113,32 @@ def get_test_image():
 # app = MainGUI()
 # app.mainloop()
 
-netwk = nn.Network(nn.train_imgs, nn.train_lbls, nn.train_imgs.shape[1],
-                   [512, 216], np.unique(nn.train_lbls).size)
+# netwk = nn.Network(nn.train_imgs, nn.train_lbls, nn.train_imgs.shape[1],
+#                    [512, 216], np.unique(nn.train_lbls).size)
+#
+# for j in range(ut.EPOCHS):
+#     print('------------------------------- E P O C H   # ' + str(j) + ' -------------------------------')
+#     netwk.train()
+#
+#     print('Accuracy: ' + str(netwk.test(nn.test_imgs, nn.test_lbls) * 100 / nn.test_lbls.size) + '%')
 
-for j in range(ut.EPOCHS):
-    print('------------------------------- E P O C H   # ' + str(j) + ' -------------------------------')
-    netwk.train()
+# nn.test_dropout()
 
-    print('Accuracy: ' + str(netwk.test(nn.test_imgs, nn.test_lbls) * 100 / nn.test_lbls.size) + '%')
+x = np.array([[0, 0],
+              [1, 1],
+              [0, 1],
+              [1, 0]])
 
+y = np.array([0, 0, 1, 1])
 
+rng = np.random.RandomState(123)
 
+# construct Dropout MLP
+classifier = nn.Network(data=x, label=y,
+                     n_in=2, hidden_layer_sizes=[2], n_out=2,
+                     rng=rng, dropout=False)
+
+classifier.hidden_layers[0].set_wb([[20, -20], [20, -20]], [-10, 30])
+classifier.log_layer.set_wb([[-20, 20], [-20, 20]], [30, -30])
+
+print('Accuracy: ' + str(classifier.test(x, y) * 100) + '%')
