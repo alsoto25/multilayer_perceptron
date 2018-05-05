@@ -113,32 +113,51 @@ def get_test_image():
 # app = MainGUI()
 # app.mainloop()
 
-# netwk = nn.Network(nn.train_imgs, nn.train_lbls, nn.train_imgs.shape[1],
-#                    [512, 216], np.unique(nn.train_lbls).size)
+
+netwk = nn.Network(nn.train_imgs, nn.train_lbls, nn.train_imgs.shape[1],
+                   [784, 784], np.unique(nn.train_lbls).size)
+
+netwk.train()
+# netwk.load('nn_784_784_ep_12_lr_001_dp_05_bs_32_acc_9836')
+# print(netwk.test(nn.test_imgs, nn.test_lbls))
+
+# for i in range(784):
+#     netwk.print_img(netwk.hidden_layers[0], i, filename='hidden_layer_1/' + str(i))
+#     netwk.print_img(netwk.hidden_layers[1], i, filename='hidden_layer_2/' + str(i))
 #
-# for j in range(ut.EPOCHS):
-#     print('------------------------------- E P O C H   # ' + str(j) + ' -------------------------------')
-#     netwk.train()
-#
-#     print('Accuracy: ' + str(netwk.test(nn.test_imgs, nn.test_lbls) * 100 / nn.test_lbls.size) + '%')
+# for i in range(10):
+#     netwk.print_img(netwk.log_layer, i, filename='log_layer/' + str(i))
+
+
+# netwk.print_img(netwk.log_layer, 1, filename='log_layer_15')
+# netwk.print_img(netwk.log_layer, 2, filename='log_layer_50')
+# netwk.print_img(netwk.log_layer, 100, filename='log_layer_100')
+# netwk.print_img(netwk.log_layer, 500, filename='log_layer_500')
+
+# netwk.print_img(netwk.hidden_layers[0], 0, filename='hidden_layer1_0_1')
+# netwk.print_img(netwk.hidden_layers[0], 15, filename='hidden_layer1_15_1')
+# netwk.print_img(netwk.hidden_layers[0], 50, filename='hidden_layer1_50_1')
+# netwk.print_img(netwk.hidden_layers[0], 100, filename='hidden_layer1_100_1')
+# netwk.print_img(netwk.hidden_layers[0], 500, filename='hidden_layer1_500_1')
+
 
 # nn.test_dropout()
 
-x = np.array([[0, 0],
-              [1, 1],
-              [0, 1],
-              [1, 0]])
-
-y = np.array([0, 0, 1, 1])
-
-rng = np.random.RandomState(123)
-
-# construct Dropout MLP
-classifier = nn.Network(data=x, label=y,
-                     n_in=2, hidden_layer_sizes=[2], n_out=2,
-                     rng=rng, dropout=False)
-
-classifier.hidden_layers[0].set_wb([[20, -20], [20, -20]], [-10, 30])
-classifier.log_layer.set_wb([[-20, 20], [-20, 20]], [30, -30])
-
-print('Accuracy: ' + str(classifier.test(x, y) * 100) + '%')
+# x = np.array([[0, 0],
+#               [1, 1],
+#               [0, 1],
+#               [1, 0]])
+#
+# y = np.array([0, 0, 1, 1])
+#
+# rng = np.random.RandomState(123)
+#
+# # construct Dropout MLP
+# classifier = nn.Network(data=x, label=y,
+#                      n_in=2, hidden_layer_sizes=[2], n_out=2,
+#                      rng=rng, dropout=False)
+#
+# for i in range(ut.EPOCHS):
+#     print('------------------------------- E P O C H   # ' + str(i) + ' -------------------------------')
+#     classifier.train(batch=False)
+#     print('Accuracy: ' + str(classifier.test(x, y) * 100) + '%')

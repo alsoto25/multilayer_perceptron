@@ -2,12 +2,17 @@ import numpy as np
 import pickle as pk
 
 # CONSTANTS
-LEARNING_RATE = 0.0085
+EPOCHS_DROP = 5
+LEARNING_RATE = 0.01
+LEARNING_RATE_DECAY = 0.3
 DROPOUT_PERCENTAGE = 0.5
-BATCH_SIZE = 16
-EPOCHS = 1000
+
 MU = 0
 SIGMA = 0.1
+EPOCHS = 25
+BATCH_SIZE = 32
+
+PICKLES_DIR = './pickles/'
 
 
 # Returns dictionary with unpickled CIFAR data
@@ -16,51 +21,10 @@ def unpickle(file):
         return pk.load(fo, encoding='bytes')
 
 
-# # ReLU function
-# def relu(mat):
-#     return np.maximum(mat, 0)
-#
-#
-# def leaky_relu(mat, alpha=0.01):
-#     return np.maximum(mat, -alpha * mat)
-#
-#
-# def relu_prime(mat, y):
-#     mat[mat <= 0] = 0
-#     mat[mat > 0] = 1
-#     return mat
-#
-#
-# def leaky_relu_prime(mat, y, alpha=0.01):
-#     dx = np.ones_like(mat)
-#     dx[mat < 0] = alpha
-#     return dx
-#
-#
-# # Softmax / CrossEntropy functions
-# # Snippet taken from https://deepnotes.io/softmax-crossentropy
-# def softmax(x):
-#     exp_max = np.exp(x - np.max(x, axis=-1, keepdims=True))
-#     return exp_max / np.sum(exp_max, axis=-1, keepdims=True)
-#
-#
-# def stable_softmax(mat):
-#     return np.exp(mat - np.max(mat))/np.sum(np.exp(mat - np.max(mat)))
-#
-#
-# def softmax_prime(mat):
-#     s = mat.reshape(-1, 1)
-#     return np.diagflat(s) - np.dot(s, s.T)
-#
-#
-# def cross_entropy(p, y):
-#     # return np.sum(np.nan_to_num(-y * np.log(mat) - (1 - y) * np.log(1 - mat)))
-#     m = np.asarray(y).shape[0]
-#     log_likelihood = -np.log(p[range(m), np.asarray(y)])
-#     loss = np.sum(log_likelihood) / m
-#     return loss
-#
-#
+def pickle(file, data):
+    with open(file, 'wb') as fo:
+        return pk.dump(data, fo, pk.HIGHEST_PROTOCOL)
+
 
 def sigmoid(x):
     return 1. / (1 + np.exp(-x))
@@ -99,7 +63,7 @@ def cross_entropy(activation, y):
     else:
         one_hot_v = np.zeros(activation.shape)
         one_hot_v[np.arange(activation.shape[0]), y] = 1
-        return -np.mean(np.sum(np.nan_to_num(one_hot_v * np.log(activation) + (1 - one_hot_v) * np.log(1 - activation)),
+        return np.mean(np.sum(np.nan_to_num(-one_hot_v * np.log(activation) - (1 - one_hot_v) * np.log(1 - activation)),
                                          axis=1))
 
 
