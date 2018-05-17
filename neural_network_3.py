@@ -3,30 +3,21 @@ import utils as ut
 import numpy as np
 import scipy.misc as smp
 
-from mnist import MNIST
-
-# MNIST Constants
-mndata = MNIST('./MNIST')
-test_imgs, test_lbls = mndata.load_testing()
-train_imgs, train_lbls = mndata.load_training()
-
-train_imgs = np.asarray(train_imgs)
-train_lbls = np.asarray(train_lbls)
-
-test_imgs = np.asarray(test_imgs)
-test_lbls = np.asarray(test_lbls)
-
 
 class Network(object):
-    def __init__(self, data, label, n_in, hidden_layer_sizes, n_out, rng=None, dropout=True):
+    def __init__(self, data, labels, n_in, hidden_layer_sizes, n_out, test_data, test_labels, rng=None, dropout=True):
         self.n_in = n_in
         self.n_out = n_out
         self.epoch = 0
         self.hidden_layer_sizes = hidden_layer_sizes
-        self.x = data / np.max(data)
-        self.y = label
+        self.x = data / 255
+        self.y = labels
+        self.test_data = test_data / 255
+        self.test_labels = test_labels
         self.dropout = dropout
 
+        self.accs = []
+        self.costs = []
         self.hidden_layers = []
         self.dropout_masks = []
         self.n_layers = len(hidden_layer_sizes)
@@ -84,8 +75,8 @@ class Network(object):
             else:
                 batch_size_range = 1
             for i in range(batch_size_range):
-                print("------------------ Batch #" + str(i + 1) + " of " + str(batch_size_range) +
-                      '  /////////  Epoch #' + str(j + 1))
+                # print("------------------ Batch #" + str(i + 1) + " of " + str(batch_size_range) +
+                #       '  /////////  Epoch #' + str(j + 1))
 
                 dropout = i == 0
 
@@ -97,24 +88,28 @@ class Network(object):
                 self.back_prop_batch()
                 self.update_batch()
 
-                print('Cost: ' + str(cost))
-                if batch:
-                    print('Batch Accuracy: ' + str(self.get_results(np.asarray([y for (x, y) in data[(i * ut.BATCH_SIZE):((i + 1) * ut.BATCH_SIZE)]]))) + '%')
+                # print('Cost: ' + str(cost))
+                # if batch:
+                #     print('Batch Accuracy: ' + str(self.get_results(np.asarray([y for (x, y) in data[(i * ut.BATCH_SIZE):((i + 1) * ut.BATCH_SIZE)]]))) + '%')
 
-            acc = self.test(test_imgs, test_lbls)
+            acc, test_cost = self.test(self.test_data, self.test_labels)
             print('Accuracy: ' + str(acc) + '%')
+            print('Test Cost: ' + str(test_cost))
 
-            lay = ''
+            is_max = self.accs == [] or acc > np.max(np.asarray(self.accs))
+            self.costs.append(test_cost)
+            self.accs.append(acc)
+            if j % ut.EPOCHS_DROP == 0 or is_max:
+                lay = ''
+                for x in self.hidden_layer_sizes:
+                    lay += str(x) + '_'
 
-            for x in self.hidden_layer_sizes:
-                lay += str(x) + '_'
-
-            self.save('nn_' + lay +
-                      'ep_' + str(j + 1) +
-                      '_lr_' + str(ut.LEARNING_RATE) +
-                      '_dp_' + str(ut.DROPOUT_PERCENTAGE) +
-                      '_bs_' + str(ut.BATCH_SIZE) +
-                      '_acc_' + str(acc))
+                self.save('nn_' + lay +
+                          'ep_' + str(j + 1) +
+                          '_lr_' + str(ut.LEARNING_RATE) +
+                          '_dp_' + str(ut.DROPOUT_PERCENTAGE) +
+                          '_bs_' + str(ut.BATCH_SIZE) +
+                          '_acc_' + str(acc))
 
     def feed_forward_batch(self, data=None, labels=None, rng=None, dropout=True):
         self.dropout_masks = []
@@ -162,22 +157,37 @@ class Network(object):
         layer_data = x
 
         for i in range(self.n_layers):
-            if self.dropout:
-                self.hidden_layers[i].W = ut.DROPOUT_PERCENTAGE * self.hidden_layers[i].W
-                self.hidden_layers[i].b = ut.DROPOUT_PERCENTAGE * self.hidden_layers[i].b
+            # if self.dropout:
+            #     self.hidden_layers[i].W = ut.DROPOUT_PERCENTAGE * self.hidden_layers[i].W
+            #     self.hidden_layers[i].b = ut.DROPOUT_PERCENTAGE * self.hidden_layers[i].b
 
             layer_data = self.hidden_layers[i].feed_forward(data=layer_data)
 
         return self.log_layer.predict(layer_data)
 
     def test(self, data, labels):
-        layer_data = data / np.max(data)
+        cost_list = []
+        result_list = []
 
-        for i in range(self.n_layers):
-            layer_data = self.hidden_layers[i].feed_forward(data=layer_data)
-        self.log_layer.feed_forward_layer(data=layer_data, labels=labels)
+        new_data = np.asarray([(x, y) for x, y in zip(data / np.max(data), labels)])
+        np.random.shuffle(new_data)
 
-        return self.get_results(labels)
+        if ut.BATCH_SIZE <= len(new_data):
+            batch_size_range = int(len(new_data) / ut.BATCH_SIZE) - 1
+        else:
+            batch_size_range = 1
+
+        for j in range(batch_size_range):
+            layer_data = np.asarray([x for (x, y) in new_data[(j * ut.BATCH_SIZE):((j + 1) * ut.BATCH_SIZE)]])
+            new_labels = np.asarray([y for (x, y) in new_data[(j * ut.BATCH_SIZE):((j + 1) * ut.BATCH_SIZE)]])
+
+            for i in range(self.n_layers):
+                layer_data = self.hidden_layers[i].feed_forward(data=layer_data)
+
+            cost_list.append(self.log_layer.feed_forward_layer(data=layer_data, labels=new_labels))
+            result_list.append(self.get_results(new_labels))
+
+        return np.mean(np.asarray(result_list)), np.mean(np.asarray(cost_list))
 
     def get_results(self, labels):
         results = [(np.argmax(x), y) for x, y in zip(self.log_layer.output, labels)]
@@ -189,7 +199,9 @@ class Network(object):
         data['general_info'] = {
             'hidden_layer_sizes': self.hidden_layer_sizes,
             'n_in': self.n_in,
-            'n_out': self.n_out
+            'n_out': self.n_out,
+            'accs': self.accs,
+            'costs': self.costs
         }
 
         for i in range(self.n_layers):
@@ -212,6 +224,8 @@ class Network(object):
 
         self.n_in = data['general_info']['n_in']
         self.n_out = data['general_info']['n_out']
+        self.costs = data['general_info']['costs']
+        self.accs = data['general_info']['accs']
         self.hidden_layer_sizes = data['general_info']['hidden_layer_sizes']
 
         self.n_layers = len(self.hidden_layer_sizes)
@@ -335,7 +349,7 @@ class HiddenLayer(object):
         if rng is None:
             rng = np.random.RandomState(123)
 
-        mask = rng.binomial(size=data.shape,
+        mask = rng.binomial(size=data.shape[1],
                             n=1,
                             p=1 - p)  # p is the prob of dropping
 
@@ -388,35 +402,8 @@ class LogisticRegression(object):
         return ut.cross_entropy(self.output, self.y)
 
     def predict(self, x):
-        return self.activation_function(np.dot(x, self.W) + self.b)
+        return np.argmax(self.activation_function(np.dot(x, self.W) + self.b))
 
     def set_wb(self, w, b):
         self.W = w
         self.b = b
-
-
-def test_dropout():
-    for i in range(ut.EPOCHS):
-        # XOR
-        x = np.array([[0, 0],
-                      [0, 1],
-                      [1, 0],
-                      [1, 1]])
-
-        y = np.array([0, 1, 1, 0])
-
-        rng = np.random.RandomState(123)
-
-        # construct Dropout MLP
-        classifier = Network(data=x, label=y,
-                             n_in=2, hidden_layer_sizes=[10, 10], n_out=2,
-                             rng=rng)
-
-        # train
-        classifier.train()
-
-        print('Accuracy: ' + str(classifier.test(x, y)))
-
-
-if __name__ == "__main__":
-    test_dropout()
